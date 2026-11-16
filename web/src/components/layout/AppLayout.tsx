@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  Activity, Bell, History, LayoutDashboard, LogOut, Menu, Monitor, Moon, Network, Palette, Server, Settings, Sun, X,
+  Activity, Bell, History, LayoutDashboard, LayoutGrid, TriangleAlert, LogOut, Menu, Monitor, Moon, Network, Palette, Server, Settings, Sun, X,
 } from "lucide-react"
 import { api, type Overview, type User } from "@/lib/api"
 import { useTheme, type Mode } from "@/lib/theme"
@@ -18,6 +18,8 @@ import { Logo } from "@/components/Logo"
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/nongreen", label: "Non-green", icon: TriangleAlert },
+  { to: "/pages", label: "Pages", icon: LayoutGrid },
   { to: "/hosts", label: "Hosts", icon: Server },
   { to: "/events", label: "Events", icon: History },
   { to: "/snmp", label: "SNMP", icon: Network },
@@ -150,6 +152,8 @@ const titles: [RegExp, string][] = [
   [/^\/hosts\/[^/]+/, "Host"],
   [/^\/hosts/, "Hosts"],
   [/^\/events/, "Events"],
+  [/^\/nongreen/, "Non-green"],
+  [/^\/pages/, "Pages"],
   [/^\/snmp/, "SNMP"],
   [/^\/alerts/, "Alerts"],
   [/^\/settings/, "Settings"],

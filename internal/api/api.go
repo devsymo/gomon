@@ -123,6 +123,7 @@ func (a *API) Router() http.Handler {
 			r.Put("/config/{name}", a.putConfig)
 			r.Post("/config/{name}/validate", a.validateConfig)
 			r.Get("/hostscfg", a.exportHostsCfg)
+			r.Get("/pages", a.pages)
 			r.Post("/hostscfg/import", a.importHostsCfg)
 
 			r.Get("/snmp", a.listSNMP)

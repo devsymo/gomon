@@ -4,9 +4,9 @@ import { Field } from "@/components/Page"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
-export type HostFields = Pick<Host, "name" | "ip" | "tags" | "description" | "page" | "class" | "notes">
+export type HostFields = Pick<Host, "name" | "ip" | "tags" | "description" | "page" | "group" | "class" | "notes">
 
-export const emptyHost: HostFields = { name: "", ip: "", tags: "", description: "", page: "", class: "", notes: "" }
+export const emptyHost: HostFields = { name: "", ip: "", tags: "", description: "", page: "", group: "", class: "", notes: "" }
 
 export function useHostForm(initial?: Partial<HostFields>) {
   return useState<HostFields>({ ...emptyHost, ...initial })
@@ -35,9 +35,12 @@ export function HostForm({ value, onChange, isNew }: { value: HostFields; onChan
       >
         <Input value={value.tags} onChange={set("tags")} placeholder="conn ssh https://web01.example.com/" className="font-mono" />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Page / group" hint="Groups hosts on the dashboard (page or page/subpage)">
-          <Input value={value.page} onChange={set("page")} placeholder="linux" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Page" hint="page, page/subpage, page/subpage/… (hosts.cfg page/subpage)">
+          <Input value={value.page} onChange={set("page")} placeholder="linux/db" />
+        </Field>
+        <Field label="Group heading" hint="Heading within the page (hosts.cfg group)">
+          <Input value={value.group} onChange={set("group")} placeholder="Primary" />
         </Field>
         <Field label="Client class" hint="Overrides the class sent by the client (analysis.cfg CLASS=)">
           <Input value={value.class} onChange={set("class")} placeholder="" />

@@ -28,3 +28,29 @@ I've built gomon: a Go rewrite of Xymon that compiles to one binary with the Rea
 - I ran `git init` but haven't committed anything.
 
 To run it: `docker compose up -d --build`, then open http://localhost:8080 and create the admin account. Without Docker: `make web build`, then `bin/gomon serve`. The README covers TLS rollout, the relay, SNMP and OIDC setup.
+
+
+
+
+
+I've added both pages. They're in the sidebar as Non-green and Pages. I tested them against an imported multi-level hosts.cfg in light and dark mode, with no browser console errors.
+
+Non-green (/nongreen) — the equivalent of Xymon's "all non-green" page.
+
+The banner at the top takes the colour of the worst check, with counts like "3 critical · 3 warning".
+Hosts are grouped by page, worst first. Each group only shows the columns that have a problem, but those columns still show the host's green checks for context.
+Filter chips choose which colours count as a problem (red, yellow and stale are on by default; blue and clear are optional). The choice is remembered in the browser. There's also a "Hide acknowledged" switch.
+When nothing matches it shows "Everything is green".
+Pages (/pages/...) — the classic Xymon layout.
+
+The top level shows a tile for each page, and each page shows tiles for its subpages, as deep as hosts.cfg nests them. Every tile and banner takes the worst colour of everything below it, with breadcrumbs back up.
+Hosts are split into one table per group heading, and each group gets its own columns, as in Xymon. Column names are vertical and each check is a round icon, like Xymon's status GIFs.
+An acknowledged problem shows a check mark on its icon, and a check that changed in the last hour gets a pulsing ring. Hovering an icon shows the summary; clicking it opens the status.
+Backend changes
+
+gomon used to drop hosts.cfg group lines and page titles, so headings and titles had nowhere to come from. Hosts now have a group field, and page titles are stored in their own table. Migration 002_groups_pages.sql adds both and runs automatically on startup.
+The hosts.cfg import now reads page/subpage/subparent/group* lines, including deeper nesting. HTML in titles is stripped.
+Exporting hosts.cfg (including config hosts.cfg over the protocol) writes all of that back out. A test checks it survives an export and re-import unchanged.
+There's a new GET /api/pages endpoint for the titles.
+The host settings form now has separate Page (e.g. linux/db) and Group heading fields. The page shown on a host's detail page links into the Pages view.
+One difference from Xymon: groups on a page are listed alphabetically (ungrouped hosts first), not in their hosts.cfg order, because gomon doesn't store that order. If you want hosts.cfg order kept, I can add a sort-order column.

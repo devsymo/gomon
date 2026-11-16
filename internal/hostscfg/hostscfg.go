@@ -1,13 +1,16 @@
 // Package hostscfg reads and writes Xymon's hosts.cfg format:
 //
 //	page linux Linux servers
-//	192.168.1.10  web01.example.com   # conn ssh http://web01.example.com/
+//	subpage db Database servers
+//	group-compress Primary
+//	192.168.1.10  db01.example.com   # conn pgsql
 package hostscfg
 
 import (
 	"bufio"
 	"fmt"
 	"net"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -15,21 +18,44 @@ import (
 )
 
 type Entry struct {
-	IP   string
-	Name string
-	Tags string
-	Page string
+	IP    string
+	Name  string
+	Tags  string
+	Page  string // "page", "page/sub", "page/sub/subsub"
+	Group string // group heading the host is listed under
 }
 
-// Parse parses hosts.cfg content. "include"/"directory" lines are ignored
-// (paste the included files instead). Page/subpage names become Page.
-func Parse(content string) ([]Entry, []string) {
-	var out []Entry
-	var warnings []string
-	var pages []string
+// Result of parsing a hosts.cfg.
+type Result struct {
+	Entries  []Entry
+	Titles   map[string]string // page path -> title
+	Warnings []string
+}
+
+var tagRe = regexp.MustCompile(`<[^>]*>`)
+
+// cleanTitle drops the HTML Xymon allows in titles.
+func cleanTitle(s string) string {
+	return strings.TrimSpace(tagRe.ReplaceAllString(s, ""))
+}
+
+// Parse parses hosts.cfg content. "include"/"directory" lines are reported
+// as warnings (paste the included files inline instead).
+func Parse(content string) *Result {
+	res := &Result{Titles: map[string]string{}}
+	var path []string // current page path
+	group := ""
 	sc := bufio.NewScanner(strings.NewReader(content))
 	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
 	ln := 0
+	setPage := func(p []string, title string) {
+		path = p
+		group = ""
+		key := strings.Join(p, "/")
+		if title = cleanTitle(title); title != "" {
+			res.Titles[key] = title
+		}
+	}
 	for sc.Scan() {
 		ln++
 		line := strings.TrimSpace(sc.Text())
@@ -37,48 +63,72 @@ func Parse(content string) ([]Entry, []string) {
 			continue
 		}
 		f := strings.Fields(line)
-		switch strings.ToLower(f[0]) {
+		kw := strings.ToLower(f[0])
+		rest := func(n int) string {
+			if len(f) <= n {
+				return ""
+			}
+			return strings.Join(f[n:], " ")
+		}
+		switch kw {
 		case "page", "vpage":
 			if len(f) > 1 {
-				pages = []string{f[1]}
+				setPage([]string{f[1]}, rest(2))
 			}
 			continue
 		case "subpage", "vsubpage":
 			if len(f) > 1 {
-				if len(pages) == 0 {
-					pages = []string{f[1]}
+				parent := path
+				if len(parent) == 0 {
+					parent = nil
 				} else {
-					pages = []string{pages[0], f[1]}
+					parent = parent[:1]
 				}
+				setPage(append(append([]string{}, parent...), f[1]), rest(2))
 			}
 			continue
-		case "subparent":
+		case "subparent", "vsubparent":
+			// subparent PARENTNAME NAME Title: parent is the last path element named PARENTNAME
 			if len(f) > 2 {
-				pages = []string{f[1], f[2]}
+				parent := path
+				for i := len(path) - 1; i >= 0; i-- {
+					if path[i] == f[1] {
+						parent = path[:i+1]
+						break
+					}
+				}
+				setPage(append(append([]string{}, parent...), f[2]), rest(3))
 			}
 			continue
-		case "group", "group-compress", "group-sorted", "group-only", "group-except", "title", "summary",
-			"include", "dispinclude", "netinclude", "directory", "optional", "ghostlist":
-			if strings.HasPrefix(strings.ToLower(f[0]), "include") || f[0] == "directory" {
-				warnings = append(warnings, fmt.Sprintf("line %d: %s not supported, paste the file contents instead", ln, f[0]))
-			}
+		case "group", "group-compress", "group-sorted":
+			group = cleanTitle(rest(1))
+			continue
+		case "group-only", "group-except":
+			group = cleanTitle(rest(2)) // first argument is the column list
+			continue
+		case "title", "summary", "dispinclude", "netinclude", "optional", "ghostlist":
+			continue
+		case "include", "directory":
+			res.Warnings = append(res.Warnings, fmt.Sprintf("line %d: %s not supported, paste the file contents instead", ln, f[0]))
 			continue
 		}
 		if len(f) < 2 || net.ParseIP(f[0]) == nil {
-			warnings = append(warnings, fmt.Sprintf("line %d: not a host line: %q", ln, line))
+			res.Warnings = append(res.Warnings, fmt.Sprintf("line %d: not a host line: %q", ln, line))
 			continue
 		}
 		tags := ""
 		if i := strings.IndexByte(line, '#'); i >= 0 {
 			tags = strings.TrimSpace(line[i+1:])
 		}
-		out = append(out, Entry{IP: f[0], Name: strings.ToLower(f[1]), Tags: tags, Page: strings.Join(pages, "/")})
+		res.Entries = append(res.Entries, Entry{IP: f[0], Name: strings.ToLower(f[1]), Tags: tags,
+			Page: strings.Join(path, "/"), Group: group})
 	}
-	return out, warnings
+	return res
 }
 
-// Format renders hosts as hosts.cfg, grouped by page.
-func Format(hosts []*model.Host) string {
+// Format renders hosts as hosts.cfg: pages (with subpage/subparent nesting),
+// then group headings, then hosts.
+func Format(hosts []*model.Host, titles map[string]string) string {
 	byPage := map[string][]*model.Host{}
 	for _, h := range hosts {
 		byPage[h.Page] = append(byPage[h.Page], h)
@@ -87,20 +137,54 @@ func Format(hosts []*model.Host) string {
 	for p := range byPage {
 		pages = append(pages, p)
 	}
+	// Parents must be declared before children.
+	for p := range byPage {
+		parts := strings.Split(p, "/")
+		for i := 1; i < len(parts); i++ {
+			parent := strings.Join(parts[:i], "/")
+			if _, ok := byPage[parent]; !ok {
+				byPage[parent] = nil
+				pages = append(pages, parent)
+			}
+		}
+	}
 	sort.Strings(pages)
 	var sb strings.Builder
 	sb.WriteString("# hosts.cfg generated by gomon\n")
 	for _, p := range pages {
 		if p != "" {
-			parts := strings.SplitN(p, "/", 2)
-			fmt.Fprintf(&sb, "\npage %s %s\n", parts[0], parts[0])
-			if len(parts) > 1 {
-				fmt.Fprintf(&sb, "subpage %s %s\n", parts[1], parts[1])
+			parts := strings.Split(p, "/")
+			name := parts[len(parts)-1]
+			title := titles[p]
+			if title == "" {
+				title = name
+			}
+			switch len(parts) {
+			case 1:
+				fmt.Fprintf(&sb, "\npage %s %s\n", name, title)
+			case 2:
+				fmt.Fprintf(&sb, "\nsubpage %s %s\n", name, title)
+			default:
+				fmt.Fprintf(&sb, "\nsubparent %s %s %s\n", parts[len(parts)-2], name, title)
 			}
 		} else {
 			sb.WriteString("\n")
 		}
-		for _, h := range byPage[p] {
+		hs := byPage[p]
+		sort.SliceStable(hs, func(i, j int) bool {
+			if hs[i].Group != hs[j].Group {
+				return hs[i].Group < hs[j].Group
+			}
+			return hs[i].Name < hs[j].Name
+		})
+		cur := ""
+		for _, h := range hs {
+			if h.Group != cur {
+				cur = h.Group
+				if cur != "" {
+					fmt.Fprintf(&sb, "group %s\n", cur)
+				}
+			}
 			ip := h.IP
 			if net.ParseIP(ip) == nil {
 				ip = "0.0.0.0"

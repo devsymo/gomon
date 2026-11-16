@@ -9,6 +9,8 @@ import Hosts from "@/pages/Hosts"
 import HostDetail from "@/pages/HostDetail"
 import StatusDetail from "@/pages/StatusDetail"
 import Events from "@/pages/Events"
+import NonGreen from "@/pages/NonGreen"
+import Classic from "@/pages/Classic"
 import SNMP from "@/pages/SNMP"
 import Alerts from "@/pages/Alerts"
 import Settings from "@/pages/Settings"
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="hosts/:host" element={<HostDetail />} />
         <Route path="hosts/:host/:test" element={<StatusDetail />} />
         <Route path="events" element={<Events />} />
+        <Route path="nongreen" element={<NonGreen />} />
+        <Route path="pages/*" element={<Classic />} />
         <Route path="snmp" element={<SNMP />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="settings" element={<Settings />} />

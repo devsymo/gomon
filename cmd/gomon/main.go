@@ -474,20 +474,21 @@ func importCmd(cfgPath *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			entries, warnings := hostscfg.Parse(string(b))
-			for _, w := range warnings {
+			parsed := hostscfg.Parse(string(b))
+			entries := parsed.Entries
+			for _, w := range parsed.Warnings {
 				fmt.Fprintln(os.Stderr, "warning:", w)
 			}
 			ctx := context.Background()
+			if err := st.SetPageTitles(ctx, parsed.Titles); err != nil {
+				return err
+			}
 			for _, e := range entries {
 				h, err := st.GetHost(ctx, e.Name)
 				if err != nil {
 					h = &model.Host{Name: e.Name}
 				}
-				h.IP, h.Tags = e.IP, e.Tags
-				if e.Page != "" {
-					h.Page = e.Page
-				}
+				h.IP, h.Tags, h.Page, h.Group = e.IP, e.Tags, e.Page, e.Group
 				if err := st.UpsertHost(ctx, h); err != nil {
 					return err
 				}

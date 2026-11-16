@@ -7,6 +7,7 @@ A rewrite of [Xymon](https://github.com/xymon-monitoring/xymon) in Go. gomon is 
 - **Native network tests.** Replaces xymonnet. Tests come from hosts.cfg tags: `conn`, TCP services, `http(s)://`, `cont;`, `httpstatus;` and `sslcert`. You can import an existing **hosts.cfg**.
 - **Native SNMP.** Supports v1, v2c and v3. Polls system info, the IF-MIB interface table (with traffic rates) and custom OIDs with thresholds. No devmon or external collector is needed.
 - **Metrics in PostgreSQL** instead of RRD files. Sources: client data, network tests, SNMP, `data HOST.trends` messages, and `name : value` lines in plugin statuses (Xymon's NCV convention).
+- **Xymon-style views.** A **Non-green** page lists every host with a red, yellow or purple check. A **Pages** view mirrors the classic Xymon layout: pages and subpages from hosts.cfg `page`, `subpage` and `subparent` lines, `group` headings, and one table per group. Each page and group shows the colour of its worst check.
 - **Web UI.** Built with React, Vite, Tailwind v4 and shadcn/ui. It follows [qui](https://github.com/autobrr/qui) in theming and layout, and ships qui's built-in themes.
 - **Authentication.** A built-in admin account, OIDC SSO, and API keys.
 - **Alerting.** Rules with delay and repeat, acks, maintenance disables, and recovery notices. Channels: Slack, Discord, ntfy, email and generic webhooks.

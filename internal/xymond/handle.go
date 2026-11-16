@@ -598,7 +598,8 @@ func (s *Server) handleConfig(msg string, peer Peer) string {
 	}
 	switch f[1] {
 	case "hosts.cfg", "bb-hosts":
-		return hostscfg.Format(s.eng.Hosts())
+		titles, _ := s.store.PageTitles(context.Background())
+		return hostscfg.Format(s.eng.Hosts(), titles)
 	case cfgfiles.AnalysisCfg, cfgfiles.ClientLocalCfg:
 		c, _ := s.cfgs.Get(f[1])
 		return c

@@ -22,7 +22,18 @@ const secretMask = "********"
 func (a *API) exportHostsCfg(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="hosts.cfg"`)
-	_, _ = w.Write([]byte(hostscfg.Format(a.Engine.Hosts())))
+	titles, _ := a.Store.PageTitles(r.Context())
+	_, _ = w.Write([]byte(hostscfg.Format(a.Engine.Hosts(), titles)))
+}
+
+// pages returns page titles (from hosts.cfg "page NAME Title" lines).
+func (a *API) pages(w http.ResponseWriter, r *http.Request) {
+	titles, err := a.Store.PageTitles(r.Context())
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, titles)
 }
 
 func (a *API) importHostsCfg(w http.ResponseWriter, r *http.Request) {
@@ -34,8 +45,14 @@ func (a *API) importHostsCfg(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	entries, warnings := hostscfg.Parse(body.Content)
+	parsed := hostscfg.Parse(body.Content)
+	entries, warnings := parsed.Entries, parsed.Warnings
 	created, updated := 0, 0
+	if !body.DryRun {
+		if err := a.Store.SetPageTitles(r.Context(), parsed.Titles); err != nil {
+			warnings = append(warnings, "page titles: "+err.Error())
+		}
+	}
 	for _, e := range entries {
 		h, exists := a.Engine.Host(e.Name)
 		if !exists {
@@ -44,10 +61,7 @@ func (a *API) importHostsCfg(w http.ResponseWriter, r *http.Request) {
 		} else {
 			updated++
 		}
-		h.IP, h.Tags = e.IP, e.Tags
-		if e.Page != "" {
-			h.Page = e.Page
-		}
+		h.IP, h.Tags, h.Page, h.Group = e.IP, e.Tags, e.Page, e.Group
 		if body.DryRun {
 			continue
 		}

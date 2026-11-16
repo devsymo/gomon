@@ -183,7 +183,11 @@ export default function HostDetail() {
             <span className="font-mono">{h.ip || "no IP"}</span>
             {h.os && <Badge variant="secondary">{h.os}</Badge>}
             {h.class && h.class !== h.os && <Badge variant="outline">class {h.class}</Badge>}
-            {h.page && <span>page: {h.page}</span>}
+            {h.page && (
+              <Link className="hover:underline" to={`/pages/${h.page.split("/").map(encodeURIComponent).join("/")}`}>
+                page: {h.page}{h.group && ` · ${h.group}`}
+              </Link>
+            )}
           </div>
           {h.tags && <div className="mt-2 font-mono text-xs text-muted-foreground"># {h.tags}</div>}
         </div>

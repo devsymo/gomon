@@ -12,7 +12,8 @@ type Host struct {
 	IP          string    `json:"ip"`
 	Tags        string    `json:"tags"` // hosts.cfg style tags, e.g. "conn ssh http://x/"
 	Description string    `json:"description"`
-	Page        string    `json:"page"`
+	Page        string    `json:"page"`  // page or page/subpage[/...]
+	Group       string    `json:"group"` // group heading within the page
 	OS          string    `json:"os"`
 	Class       string    `json:"class"`
 	Notes       string    `json:"notes"`

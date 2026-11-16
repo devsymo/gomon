@@ -28,6 +28,7 @@ export interface Host {
   tags: string
   description: string
   page: string
+  group: string
   os: string
   class: string
   notes: string

@@ -111,11 +111,11 @@ func (s *Store) migrate(ctx context.Context) error {
 
 // ---- hosts ----
 
-const hostCols = `name, ip, tags, description, page, os, class, notes, created_at, updated_at`
+const hostCols = `name, ip, tags, description, page, grp, os, class, notes, created_at, updated_at`
 
 func scanHost(row pgx.Row) (*model.Host, error) {
 	var h model.Host
-	err := row.Scan(&h.Name, &h.IP, &h.Tags, &h.Description, &h.Page, &h.OS, &h.Class, &h.Notes, &h.CreatedAt, &h.UpdatedAt)
+	err := row.Scan(&h.Name, &h.IP, &h.Tags, &h.Description, &h.Page, &h.Group, &h.OS, &h.Class, &h.Notes, &h.CreatedAt, &h.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -145,10 +145,10 @@ func (s *Store) GetHost(ctx context.Context, name string) (*model.Host, error) {
 
 func (s *Store) UpsertHost(ctx context.Context, h *model.Host) error {
 	_, err := s.DB.Exec(ctx, `
-		INSERT INTO hosts (name, ip, tags, description, page, os, class, notes)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-		ON CONFLICT (name) DO UPDATE SET ip=$2, tags=$3, description=$4, page=$5, os=$6, class=$7, notes=$8, updated_at=now()`,
-		h.Name, h.IP, h.Tags, h.Description, h.Page, h.OS, h.Class, h.Notes)
+		INSERT INTO hosts (name, ip, tags, description, page, os, class, notes, grp)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		ON CONFLICT (name) DO UPDATE SET ip=$2, tags=$3, description=$4, page=$5, os=$6, class=$7, notes=$8, grp=$9, updated_at=now()`,
+		h.Name, h.IP, h.Tags, h.Description, h.Page, h.OS, h.Class, h.Notes, h.Group)
 	return err
 }
 
@@ -446,4 +446,33 @@ func (s *Store) Prune(ctx context.Context, metricsBefore, historyBefore time.Tim
 	}
 	_, err := s.DB.Exec(ctx, `DELETE FROM sessions WHERE expires_at < now()`)
 	return err
+}
+
+// ---- page titles ----
+
+func (s *Store) PageTitles(ctx context.Context) (map[string]string, error) {
+	rows, err := s.DB.Query(ctx, `SELECT path, title FROM page_titles`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var p, t string
+		if err := rows.Scan(&p, &t); err != nil {
+			return nil, err
+		}
+		out[p] = t
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SetPageTitles(ctx context.Context, titles map[string]string) error {
+	for p, t := range titles {
+		if _, err := s.DB.Exec(ctx, `INSERT INTO page_titles (path, title) VALUES ($1,$2)
+			ON CONFLICT (path) DO UPDATE SET title=$2`, p, t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
