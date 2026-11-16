@@ -1,0 +1,30 @@
+I've built gomon: a Go rewrite of Xymon that compiles to one binary with the React/shadcn UI embedded (like qui), stores data in PostgreSQL, and accepts unmodified Xymon clients. I tested it against Upstream Xymon's own client, compiled from source: it worked over plain Xymon, over TLS, and through the relay. The one thing I couldn't test is the Docker image and `docker-compose.yml`, because the Docker daemon wasn't running. For testing I used a throwaway local Postgres.
+
+**Existing agents and plugins**
+- **Plain Xymon:** gomon listens on 1984 and handles the standard message types (status, combo, client, data, queries, disable/enable, ack, drop and the rest). Hosts register themselves the first time they report.
+- **Your config files:** you can keep using `analysis.cfg` (thresholds for cpu, disk, inode, memory, processes, ports and logs) and `client-local.cfg`. `hosts.cfg` can be imported from the UI or the command line.
+- **Plugins** keep calling `$XYMON $XYMSRV "status …"`. Plugin output in the `name : value` form is also graphed, as Xymon does.
+
+**Encryption**
+- Port 1985 speaks the TLS mode that Xymon 4.3.32 introduced (`xymons://`), so recent Xymon clients can encrypt with a config change only.
+- gomon has its own certificate authority. It issues the server certificate and per-host client certificates, either from the UI or with `gomon cert issue` / `gomon cert sign`.
+- A client with a certificate can only report for the host its certificate names. In testing, an attempt to report as a different host was rejected.
+- For older agents (BBWin, devmon, older scripts), `gomon relay` runs on the monitored host, accepts plain messages on 127.0.0.1:1984 and forwards them encrypted. No client changes are needed.
+- `gomon send`, or the binary symlinked as `xymon`, is a drop-in replacement for the `xymon` command and also supports `xymons://`.
+
+**Tested with real clients and devices**
+- Xymon's own `xymon` command, sending plain, sending over TLS with client certificates, and going through the relay.
+- Xymon's full client script on this Mac, sending real OS data over TLS. gomon's memory check gave the same result as Xymon's: swap at 89% is red.
+- SNMP v2c against the `snmpd` that ships with macOS: system info, custom OIDs with thresholds, and 23 interfaces with traffic rates. v1/v2c/v3 are supported, but v3 hasn't been tested against a live agent.
+- Built-in network tests (ping, TCP services, closed-port checks, HTTP status and content checks, certificate expiry), alert rules (Slack, Discord, ntfy, email, webhook), and OIDC login. The OIDC code is written but I haven't run it against a real identity provider.
+- I checked every page in headless Chrome, in light, dark and mobile layouts.
+
+**UI:** The layout follows qui: sidebar and header, light/dark/system mode, and qui's own free themes. It has a dashboard with a Xymon-style host-by-check grid, hosts, per-check pages with history and graphs, raw client data, events, SNMP, alerts, and settings.
+
+**Things you should know**
+- **License:** I copied qui's theme files so the look matches exactly. They are GPL-2.0-or-later, so I added a GPL `LICENSE` (Xymon is GPL-2 too). If you don't want GPL, I can remove those themes and write our own.
+- **Not built yet:** importing history from old RRD files, the `alerts.cfg` format (alerts are set up in the UI instead), xymonnet's dns/ldap/ntp tests, SNMP traps, reports/SLA pages, and the analysis.cfg rules `FILE`, `DIR`, `SVC` and `LINECOUNT` (gomon accepts them but doesn't evaluate them yet).
+- **Build:** this shell's default Node is v18, which is too old for the frontend build. Building needs Node 20.19+ (your nvm v24 works) and Go 1.26.
+- I ran `git init` but haven't committed anything.
+
+To run it: `docker compose up -d --build`, then open http://localhost:8080 and create the admin account. Without Docker: `make web build`, then `bin/gomon serve`. The README covers TLS rollout, the relay, SNMP and OIDC setup.

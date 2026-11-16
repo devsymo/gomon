@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gomon
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gomon}
+      POSTGRES_DB: gomon
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gomon -d gomon"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  gomon:
+    build: .
+    image: gomon:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"   # web UI
+      - "1984:1984"   # Xymon protocol (plaintext)
+      - "1985:1985"   # Xymon protocol over TLS (xymons://)
+    environment:
+      GOMON_DATABASE_DSN: postgres://gomon:${POSTGRES_PASSWORD:-gomon}@postgres:5432/gomon?sslmode=disable
+      # Names clients use to reach this server (added to the auto-issued TLS certificate)
+      GOMON_XYMON_TLS_SERVER_NAMES: ${GOMON_TLS_NAMES:-localhost}
+      # GOMON_BASE_URL: https://gomon.example.com
+      # GOMON_OIDC_ENABLED: "true"
+      # GOMON_OIDC_ISSUER: https://auth.example.com/application/o/gomon/
+      # GOMON_OIDC_CLIENT_ID: gomon
+      # GOMON_OIDC_CLIENT_SECRET: change-me
+      # GOMON_OIDC_REDIRECT_URL: https://gomon.example.com/api/auth/oidc/callback
+    sysctls:
+      # lets the non-root container send ICMP echo (conn tests) without raw sockets
+      net.ipv4.ping_group_range: "0 2147483647"
+    volumes:
+      - gomondata:/data
+
+volumes:
+  pgdata:
+  gomondata:

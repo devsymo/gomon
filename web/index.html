@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>gomon</title>
+    <script>
+      // Paint the last theme before React loads (avoids a flash).
+      (function () {
+        try {
+          var mode = localStorage.getItem("gomon-mode") || "system";
+          var dark = mode === "dark" || (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+          var cached = JSON.parse(localStorage.getItem("gomon-theme-cache") || "null");
+          if (cached) {
+            var vars = dark ? cached.dark : cached.light;
+            for (var k in vars) document.documentElement.style.setProperty(k, vars[k]);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
